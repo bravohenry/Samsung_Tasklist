@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>移动竞赛团队十周任务时间线</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: The application is structured as an interactive dashboard. The main navigation on the left allows users to select a two-week phase (sprint). The main content area on the right dynamically displays the details for the selected phase: goals, tasks, collaborations, and deliverables. Below this, a visual Gantt chart provides a high-level overview of the entire project timeline. This master-detail structure was chosen to make the dense project plan easily digestible. Users can see the big picture via the chart and then drill down into specific periods for actionable details, which is the most logical workflow for a team member reviewing their tasks. -->
+    <!-- Visualization & Content Choices: 
+        1. Gantt Chart: Report Info: 10-week timeline split into 5 phases. Goal: Visualize project duration and sequence. Viz Method: Chart.js horizontal bar chart. Interaction: Hover for phase goal. Justification: Standard, intuitive visualization for project timelines. Library: Chart.js.
+        2. Phase Details: Report Info: Detailed tasks, collaborations, deliverables per phase. Goal: Provide specific, actionable information. Presentation Method: Dynamically updated content cards. Interaction: Click on phase navigation updates this view. Justification: Prevents information overload by showing only relevant details for the selected period. Method: JS DOM manipulation.
+        3. Language Switcher: Report Info: All text content. Goal: Bilingual support. Presentation Method: Toggle button. Interaction: Click to swap text content from a JS dictionary. Justification: Standard method for SPA internationalization. Method: JS.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            background-color: #FDFBF8;
+            color: #383838;
+        }
+        .phase-btn {
+            transition: all 0.3s ease;
+        }
+        .phase-btn.active {
+            background-color: #4A5568; /* bg-gray-700 */
+            color: #FFFFFF;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .content-card {
+            background-color: #FFFFFF;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            will-change: transform;
+        }
+        .content-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(74, 85, 104, 0.1);
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 250px;
+            max-height: 300px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 300px;
+                max-height: 350px;
+            }
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto p-4 md:p-8">
+
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold text-gray-800" data-lang-key="title">移动竞赛团队十周任务时间线</h1>
+                <p class="text-gray-500 mt-1" data-lang-key="subtitle">Team 6: 移动竞争研究</p>
+            </div>
+            <button id="lang-switcher" class="bg-white border border-gray-300 rounded-lg px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
+                Switch to English
+            </button>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <nav class="lg:col-span-3">
+                <div class="bg-white rounded-xl shadow-sm p-4 sticky top-8">
+                    <h2 class="font-bold mb-4 text-lg" data-lang-key="phases_title">项目阶段</h2>
+                    <div id="phases-nav" class="flex lg:flex-col gap-2">
+                    </div>
+                </div>
+            </nav>
+
+            <div class="lg:col-span-9">
+                <section id="phase-details">
+                    <h2 id="phase-title" class="text-2xl font-bold mb-2 text-gray-700"></h2>
+                    <p id="phase-goal" class="text-gray-600 mb-6 italic"></p>
+                    
+                    <div class="space-y-8">
+                        <div class="rounded-xl shadow-sm p-6 content-card">
+                            <h3 class="font-bold text-xl mb-4 flex items-center text-blue-600">
+                                <span class="mr-3">🎯</span>
+                                <span data-lang-key="core_tasks">本团队核心任务</span>
+                            </h3>
+                            <div id="phase-tasks" class="space-y-4"></div>
+                        </div>
+                        
+                        <div class="rounded-xl shadow-sm p-6 content-card">
+                            <h3 class="font-bold text-xl mb-4 flex items-center text-green-600">
+                                <span class="mr-3">🤝</span>
+                                <span data-lang-key="collaboration">跨团队协作</span>
+                            </h3>
+                            <div id="phase-collab" class="space-y-4"></div>
+                        </div>
+                        
+                        <div class="rounded-xl shadow-sm p-6 content-card">
+                            <h3 class="font-bold text-xl mb-4 flex items-center text-purple-600">
+                                <span class="mr-3">🏆</span>
+                                <span data-lang-key="deliverables">交付成果</span>
+                            </h3>
+                            <div id="phase-deliverables" class="space-y-4"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="mt-12">
+                    <h2 class="text-2xl font-bold mb-4 text-gray-700" data-lang-key="timeline_overview">项目时间线概览</h2>
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <div class="chart-container">
+                            <canvas id="ganttChart"></canvas>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+<script>
+const langData = {
+    zh: {
+        title: "移动竞赛团队十周任务时间线",
+        subtitle: "Team 6: 移动竞争研究",
+        switch_lang: "Switch to English",
+        phases_title: "项目阶段",
+        phase_1: "第一、二周",
+        phase_2: "第三、四周",
+        phase_3: "第五、六周",
+        phase_4: "第七、八周",
+        phase_5: "第九、十周",
+        core_tasks: "本团队核心任务",
+        collaboration: "跨团队协作",
+        deliverables: "交付成果",
+        timeline_overview: "项目时间线概览",
+        phases: [
+            {
+                goal: "快速启动项目，明确研究范围，完成对主要竞争对手的初步信息收集与分析。",
+                tasks: [
+                    { title: "竞品定义与范围确认", description: "与团队成员讨论并最终确定本次研究的核心竞争对手名单 (如 Apple, Google, Huawei)，并划定具体的研究维度 (如硬件设计、系统交互、品牌形象等)。" },
+                    { title: "“形容词研究”启动", description: "收集主要竞品的官方营销材料、权威媒体评测和真实用户评论，初步提炼和归纳描述各竞品设计语言和用户感受的高频关键词。" },
+                    { title: "建立竞品资料库", description: "创建共享云端文件夹 (如 Google Drive)，系统性地整理和归档所有收集到的竞品资料，包括截图、报告、链接等，方便团队随时查阅。" }
+                ],
+                collab: [
+                    { title: "与 Team 1 (项目协调) 对接", description: "参加项目启动会，确保对项目整体目标、时间节点和最新动态有清晰、一致的理解。" },
+                    { title: "与 Team 4 (词汇语义) 协作", description: "密切沟通，对齐“形容词研究”的方法论和标准，确保双方研究口径和颗粒度一致，避免重复工作。" },
+                    { title: "与 Team 5 (营销传播) 交流", description: "分享本团队的初步发现，同时获取他们关于竞品营销策略的初期研究成果，形成合力。" }
+                ],
+                deliverables: [
+                    { title: "竞品研究范围定义文档", description: "一份明确定义了研究对象、维度和方法论的Word或Google Doc文档。" },
+                    { title: "初步的竞品“形容词”词汇表", description: "一个包含各竞品核心关键词及其出现频率的Excel表格。" },
+                    { title: "结构化的竞品资料库 V1.0", description: "一个文件结构清晰、命名规范的共享云端文件夹。" }
+                ]
+            },
+            {
+                goal: "深入分析竞品的设计策略，并为团队的调查问卷提供关键输入，同时准备中期演示。",
+                tasks: [
+                    { title: "竞品设计策略深度分析", description: "系统性地分析各竞品的设计原则和视觉语言，输出可视化的“竞品设计风格象限图”，标定三星在其中的当前位置。" },
+                    { title: "支持调查问卷设计", description: "根据竞品分析的洞察，向负责问卷的团队提供3-5个关键问题建议，确保问卷能有效衡量用户对三星及竞品设计的感知差异。" },
+                    { title: "准备中期演示内容", description: "整理前四周的研究发现，提炼核心观点，独立完成演示文稿中“移动竞争分析”章节的制作。" }
+                ],
+                collab: [
+                    { title: "参与研究综合会议", description: "与所有研究团队 (Teams 2-7) 分享各自领域的发现，寻找交叉洞察，共同构建项目的中期成果。" },
+                    { title: "与 Qualtrics 问卷团队协作", description: "提交竞品相关的问卷问题，并参与讨论会议，以优化问卷的逻辑和格式。" },
+                    { title: "向 Team 8 (客户演示) 交付内容", description: "将本团队的研究成果和PPT章节正式提交给演示团队，作为第三周项目演示的核心输入。" }
+                ],
+                deliverables: [
+                    { title: "竞品设计策略分析报告 V1.0", description: "一份包含“竞品设计风格象限图”和详细分析的PPT或PDF报告。" },
+                    { title: "为调查问卷贡献的问题清单", description: "一封包含明确问题建议和设计理由的邮件或文档。" },
+                    { title: "用于项目中期演示的PPT章节", description: "一个内容完整、设计精良的PPT文件部分。" }
+                ]
+            },
+            {
+                goal: "分析问卷数据中与竞争相关的部分，并开始将定量数据与定性研究进行综合。",
+                tasks: [
+                    { title: "竞品相关数据分析", description: "从Qualtrics原始数据中，筛选并重点分析所有涉及竞品对比的问题，使用Excel或SPSS进行数据处理。" },
+                    { title: "初步研究综合", description: "将问卷的定量数据分析结果与前期的定性案头研究相结合，撰写一份综合分析备忘录，验证或修正此前的假设。" },
+                    { title: "数据可视化草图", description: "基于综合分析，手绘或使用工具制作2-3张核心数据图表的草图，用于表达关键发现。" }
+                ],
+                collab: [
+                    { title: "进行密集研究综合", description: "与所有研究团队 (Teams 2-7) 举行至少两次深度工作坊，将各自的数据分析结果进行碰撞，共同提炼核心发现。" },
+                    { title: "与 Team 8 (数据可视化) 协作", description: "与负责可视化的同学讨论，确保本团队的数据洞察能以最清晰、最有影响力的方式进行视觉呈现。" }
+                ],
+                deliverables: [
+                    { title: "竞品数据分析报告", description: "一份清晰展示数据结果和初步解读的报告。" },
+                    { title: "初步研究综合报告", description: "一份结合了定性与定量发现的Word文档。" },
+                    { title: "数据可视化草图", description: "包含核心洞察的图表草图照片或数字文件。" }
+                ]
+            },
+            {
+                goal: "从综合分析中提炼出深刻的“见解/概念”，并明确指出三星设计原则的开发机会点。",
+                tasks: [
+                    { title: "提炼核心洞察", description: "基于所有研究，总结出2-3条关于竞争格局和三星定位的最核心洞察，并将其转化为简洁、有力的观点陈述。" },
+                    { title: "识别设计原则机会", description: "明确提出三星在设计原则上可以加强或应建立的3-5个独特性方向，并提供竞品案例作为佐证。" },
+                    { title: "参与概念开发工作坊", description: "积极参与跨团队的设计原则概念开发工作坊，从竞争视角提供有价值的输入和反馈。" }
+                ],
+                collab: [
+                    { title: "共同进行洞察冲刺", description: "与所有研究团队 (Teams 2-7) 参加为期2天的“洞察提炼”冲刺，这是项目中最需要创意和集体智慧的阶段。" },
+                    { title: "向 Team 8 系统性输出洞察", description: "定期向演示团队同步最新的核心洞察和概念雏形，确保最终客户演示的内容准确且深刻。" }
+                ],
+                deliverables: [
+                    { title: "“竞争洞察与设计机会点”报告", description: "一份高度浓缩、观点鲜明的PPT报告。" },
+                    { title: "设计原则概念初步草案", description: "在共享文档中对新的设计原则概念提出具体的文字描述和建议。" },
+                    { title: "最终演示的核心材料", description: "为最终演示准备的、关于竞争分析和机会点的所有核心内容。" }
+                ]
+            },
+            {
+                goal: "完成最终的策略报告和设计原则指南，并成功进行最终项目演示。",
+                tasks: [
+                    { title: "完成最终策略报告撰写", description: "负责撰写最终报告中“移动竞争环境分析”及“基于竞争格局的设计策略建议”两个章节，确保逻辑严谨、数据准确。" },
+                    { title: "完善设计原则指南", description: "从竞争策略角度，对设计原则的具体执行方式提出不少于5条建议，确保原则不仅是理论，更能落地并形成竞争优势。" },
+                    { title: "项目任务流程文档化", description: "根据要求，详细记录本团队的研究过程、使用工具和方法论，完成项目文档中对应的部分。" }
+                ],
+                collab: [
+                    { title: "全力配合 Team 8 (客户演示)", description: "提供最终演示和指南所需的一切材料、数据和观点，并在最终演示前参加至少三次内部预演。" },
+                    { title: "与所有团队共同审阅", description: "参与所有最终交付物的交叉审阅会议，确保所有文档信息的一致性和高质量。" }
+                ],
+                deliverables: [
+                    { title: "最终版报告章节", description: "提交报告中由本团队负责的最终Word或PDF章节。" },
+                    { title: "对设计原则指南的贡献", description: "在最终指南文档中，完成相关的评论和内容撰写。" },
+                    { title: "完整的团队任务流程文档", description: "一份记录了完整研究轨迹的详细文档。" }
+                ]
+            }
+        ]
+    },
+    en: {
+        title: "Mobile Competition Team 10-Week Timeline",
+        subtitle: "Team 6: Mobile Competition Research",
+        switch_lang: "切换到中文",
+        phases_title: "Project Phases",
+        phase_1: "Weeks 1-2",
+        phase_2: "Weeks 3-4",
+        phase_3: "Weeks 5-6",
+        phase_4: "Weeks 7-8",
+        phase_5: "Weeks 9-10",
+        core_tasks: "Our Team's Core Tasks",
+        collaboration: "Cross-Team Collaboration",
+        deliverables: "Deliverables",
+        timeline_overview: "Project Timeline Overview",
+        phases: [
+            {
+                goal: "Quickly launch the project, define research scope, and complete preliminary information gathering and analysis of key competitors.",
+                tasks: [
+                    { title: "Define Competitors & Scope", description: "Discuss with team members to finalize the list of core competitors for this study (e.g., Apple, Google, Huawei) and define the specific research dimensions (e.g., hardware design, system interaction, brand image)." },
+                    { title: "Initiate 'Adjective Research'", description: "Collect official marketing materials, authoritative media reviews, and genuine user comments for major competitors to preliminarily extract and summarize high-frequency keywords describing their design language and user perception." },
+                    { title: "Establish Competitor Materials Library", description: "Create a shared cloud folder (e.g., Google Drive) to systematically organize and archive all collected competitor materials, including screenshots, reports, and links, for easy team access." }
+                ],
+                collab: [
+                    { title: "Liaise with Team 1 (Project Coordination)", description: "Attend the project kickoff meeting to ensure a clear and consistent understanding of the overall project goals, timelines, and latest updates." },
+                    { title: "Collaborate with Team 4 (Lexical Semantics)", description: "Communicate closely to align on the methodology and standards for the 'Adjective Research' to ensure consistency and avoid redundant work." },
+                    { title: "Exchange with Team 5 (Marketing Comms)", description: "Share our team's initial findings while obtaining their early research on competitor marketing strategies to create synergy." }
+                ],
+                deliverables: [
+                    { title: "Competitor Research Scope Document", description: "A Word or Google Doc that clearly defines the research subjects, dimensions, and methodology." },
+                    { title: "Preliminary 'Adjective' Vocabulary List", description: "An Excel sheet containing key competitor keywords and their frequency of appearance." },
+                    { title: "Structured Competitor Library V1.0", description: "A shared cloud folder with a clear file structure and standardized naming conventions." }
+                ]
+            },
+            {
+                goal: "Deeply analyze competitor design strategies, provide key input for the team's survey, and prepare for the mid-term presentation.",
+                tasks: [
+                    { title: "In-depth Competitor Design Strategy Analysis", description: "Systematically analyze the design principles and visual language of each competitor, producing a 'Competitor Design Style Quadrant' to map Samsung's current position." },
+                    { title: "Support Survey Design", description: "Based on insights from competitor analysis, provide 3-5 key question suggestions to the survey team to ensure the questionnaire effectively measures user perception differences between Samsung and its competitors." },
+                    { title: "Prepare Mid-term Presentation Content", description: "Consolidate research findings from the first four weeks, extract key points, and independently create the 'Mobile Competition Analysis' section of the presentation." }
+                ],
+                collab: [
+                    { title: "Participate in Research Synthesis Meetings", description: "Share findings from our respective areas with all research teams (Teams 2-7) to find cross-insights and co-build the project's interim results." },
+                    { title: "Work with Qualtrics Survey Team", description: "Submit competitor-related survey questions and participate in discussions to optimize the survey's logic and format." },
+                    { title: "Deliver Content to Team 8 (Client Presentation)", description: "Formally submit our team's research findings and PPT section to the presentation team as core input for the Week 3 project presentation." }
+                ],
+                deliverables: [
+                    { title: "Competitor Design Strategy Analysis Report V1.0", description: "A PPT or PDF report including the 'Competitor Design Style Quadrant' and detailed analysis." },
+                    { title: "List of Contributed Survey Questions", description: "An email or document with clear question suggestions and their rationale." },
+                    { title: "PPT Section for Mid-term Presentation", description: "A complete and well-designed portion of a PPT file." }
+                ]
+            },
+            {
+                goal: "Analyze competition-related sections of survey data and begin integrating quantitative data with qualitative research.",
+                tasks: [
+                    { title: "Analyze Competitor-Related Data", description: "Filter and focus on analyzing all competitor comparison questions from the raw Qualtrics data, using Excel or SPSS for data processing." },
+                    { title: "Preliminary Research Synthesis", description: "Combine quantitative data analysis results with prior qualitative desk research to write a synthesis memo, validating or revising previous hypotheses." },
+                    { title: "Data Visualization Drafts", description: "Based on the synthesis, create hand-drawn or tool-generated drafts of 2-3 key data charts to express key findings." }
+                ],
+                collab: [
+                    { title: "Conduct Intensive Research Synthesis", description: "Hold at least two in-depth workshops with all research teams (Teams 2-7) to cross-reference data analysis results and jointly distill core findings." },
+                    { title: "Collaborate with Team 8 (Data Visualization)", description: "Discuss with the visualization specialists to ensure our team's data insights are presented in the clearest and most impactful way." }
+                ],
+                deliverables: [
+                    { title: "Competitor Data Analysis Report", description: "A report clearly presenting data results and initial interpretations." },
+                    { title: "Preliminary Research Synthesis Report", description: "A Word document combining qualitative and quantitative findings." },
+                    { title: "Data Visualization Drafts", description: "Photos or digital files of chart drafts containing core insights." }
+                ]
+            },
+            {
+                goal: "Extract profound 'insights/concepts' from the synthesis and identify development opportunities for Samsung's design principles.",
+                tasks: [
+                    { title: "Distill Core Insights", description: "Based on all research, summarize 2-3 core insights about the competitive landscape and Samsung's positioning, and transform them into concise, powerful statements." },
+                    { title: "Identify Design Principle Opportunities", description: "Clearly propose 3-5 unique directions Samsung could strengthen or establish in its design principles, supported by competitor case studies." },
+                    { title: "Participate in Concept Development Workshops", description: "Actively participate in cross-team design principle concept development workshops, providing valuable input and feedback from a competitive perspective." }
+                ],
+                collab: [
+                    { title: "Jointly Sprint on Insights", description: "Participate in a 2-day 'Insight Distillation' sprint with all research teams (Teams 2-7), the most creative and collaborative phase of the project." },
+                    { title: "Systematically Output Insights to Team 8", description: "Regularly sync with the presentation team on the latest core insights and concept drafts to ensure the final client presentation is accurate and profound." }
+                ],
+                deliverables: [
+                    { title: "'Competitive Insights & Design Opportunities' Report", description: "A highly condensed, point-driven PPT report." },
+                    { title: "Preliminary Draft of Design Principle Concepts", description: "Provide specific text descriptions and suggestions for new design principle concepts in a shared document." },
+                    { title: "Core Materials for Final Presentation", description: "All core content regarding competitive analysis and opportunities prepared for the final presentation." }
+                ]
+            },
+            {
+                goal: "Complete the final strategy report and design principles guide, and successfully deliver the final project presentation.",
+                tasks: [
+                    { title: "Complete Final Strategy Report", description: "Take responsibility for writing the 'Mobile Competitive Environment Analysis' and 'Design Strategy Recommendations based on Competitive Landscape' sections of the final report, ensuring logical rigor and data accuracy." },
+                    { title: "Refine Design Principles Guide", description: "Provide at least 5 suggestions for the specific execution of the design principles from a competitive strategy perspective, ensuring they are practical and create a competitive edge." },
+                    { title: "Document Project Task Flow", description: "Detail our team's research process, tools used, and methodologies as required, completing the corresponding section of the project documentation." }
+                ],
+                collab: [
+                    { title: "Fully Support Team 8 (Client Presentation)", description: "Provide all necessary materials, data, and viewpoints for the final presentation and guide, and participate in at least three internal rehearsals." },
+                    { title: "Jointly Review with All Teams", description: "Participate in cross-review meetings for all final deliverables to ensure consistency and high quality across all documents." }
+                ],
+                deliverables: [
+                    { title: "Final Report Chapters", description: "Submit the final Word or PDF chapters of the report that our team is responsible for." },
+                    { title: "Contributions to Design Principles Guide", description: "Complete relevant comments and content writing in the final guide document." },
+                    { title: "Complete Team Task Flow Documentation", description: "A detailed document recording the entire research trajectory." }
+                ]
+            }
+        ]
+    }
+};
+
+let currentLang = 'zh';
+let currentPhase = 0;
+let ganttChart = null;
+
+const langSwitcher = document.getElementById('lang-switcher');
+const phasesNav = document.getElementById('phases-nav');
+
+function renderLanguage() {
+    document.documentElement.lang = currentLang;
+    const elements = document.querySelectorAll('[data-lang-key]');
+    elements.forEach(el => {
+        const key = el.getAttribute('data-lang-key');
+        if (langData[currentLang][key]) {
+            el.textContent = langData[currentLang][key];
+        }
+    });
+    langSwitcher.textContent = langData[currentLang].switch_lang;
+    renderPhaseNavigation();
+    renderPhaseDetails();
+    renderGanttChart();
+}
+
+function renderPhaseNavigation() {
+    phasesNav.innerHTML = '';
+    langData[currentLang].phases.forEach((_, index) => {
+        const phaseKey = `phase_${index + 1}`;
+        const button = document.createElement('button');
+        button.textContent = langData[currentLang][phaseKey];
+        button.dataset.phaseIndex = index;
+        button.className = 'w-full text-left p-3 rounded-lg font-medium phase-btn bg-gray-100 hover:bg-gray-200';
+        if (index === currentPhase) {
+            button.classList.add('active');
+        }
+        button.addEventListener('click', () => {
+            currentPhase = index;
+            document.querySelectorAll('#phases-nav .phase-btn').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            renderPhaseDetails();
+        });
+        phasesNav.appendChild(button);
+    });
+}
+
+function renderDetailedList(containerId, items) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    items.forEach(item => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'border-l-4 border-gray-200 pl-4';
+        
+        const title = document.createElement('h4');
+        title.className = 'font-semibold text-gray-800';
+        title.textContent = item.title;
+
+        const description = document.createElement('p');
+        description.className = 'text-gray-600 text-sm mt-1';
+        description.textContent = item.description;
+
+        itemDiv.appendChild(title);
+        itemDiv.appendChild(description);
+        container.appendChild(itemDiv);
+    });
+}
+
+function renderPhaseDetails() {
+    const phaseData = langData[currentLang].phases[currentPhase];
+    const phaseKey = `phase_${currentPhase + 1}`;
+
+    document.getElementById('phase-title').textContent = langData[currentLang][phaseKey];
+    document.getElementById('phase-goal').textContent = phaseData.goal;
+    
+    renderDetailedList('phase-tasks', phaseData.tasks);
+    renderDetailedList('phase-collab', phaseData.collab);
+    renderDetailedList('phase-deliverables', phaseData.deliverables);
+}
+
+function renderGanttChart() {
+    const ctx = document.getElementById('ganttChart').getContext('2d');
+    const labels = langData[currentLang].phases.map((_, index) => langData[currentLang][`phase_${index + 1}`]);
+    const data = {
+        labels: labels,
+        datasets: [{
+            label: langData[currentLang].phases_title,
+            data: [
+                [0, 2],
+                [2, 4],
+                [4, 6],
+                [6, 8],
+                [8, 10]
+            ],
+            backgroundColor: [
+                'rgba(59, 130, 246, 0.5)',
+                'rgba(16, 185, 129, 0.5)',
+                'rgba(239, 68, 68, 0.5)',
+                'rgba(249, 115, 22, 0.5)',
+                'rgba(139, 92, 246, 0.5)',
+            ],
+            borderColor: [
+                'rgb(59, 130, 246)',
+                'rgb(16, 185, 129)',
+                'rgb(239, 68, 68)',
+                'rgb(249, 115, 22)',
+                'rgb(139, 92, 246)',
+            ],
+            borderWidth: 1,
+            barPercentage: 0.6,
+            categoryPercentage: 0.7,
+            borderSkipped: false
+        }]
+    };
+
+    const options = {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const phaseIndex = context.dataIndex;
+                        const goal = langData[currentLang].phases[phaseIndex].goal;
+                        const goalText = langData[currentLang] === 'zh' ? '目标' : 'Goal';
+                        if (goal.length > 50) {
+                            return `${goalText}: ${goal.substring(0, 50)}...`;
+                        }
+                        return `${goalText}: ${goal}`;
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                min: 0,
+                max: 10,
+                title: {
+                    display: true,
+                    text: 'Weeks'
+                },
+                grid: {
+                    color: '#e5e7eb'
+                }
+            },
+            y: {
+                 grid: {
+                    display: false
+                }
+            }
+        }
+    };
+    
+    if (ganttChart) {
+        ganttChart.destroy();
+    }
+
+    ganttChart = new Chart(ctx, {
+        type: 'bar',
+        data: data,
+        options: options
+    });
+}
+
+
+langSwitcher.addEventListener('click', () => {
+    currentLang = currentLang === 'zh' ? 'en' : 'zh';
+    renderLanguage();
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    renderLanguage();
+});
+</script>
+
+</body>
+</html>
